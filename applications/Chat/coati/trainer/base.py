@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from .callbacks import Callback
 from .strategies import Strategy
 from .utils import CycledDataLoader, is_rank_0
-
+from torch.utils.tensorboard import SummaryWriter
 
 class SLTrainer(ABC):
     """
@@ -31,13 +31,16 @@ class SLTrainer(ABC):
         max_epochs: int,
         model: nn.Module,
         optimizer: Optimizer,
+        tensorboard_dir: str = None,
     ) -> None:
         super().__init__()
         self.strategy = strategy
         self.max_epochs = max_epochs
         self.model = model
         self.optimizer = optimizer
-
+        if tensorboard_dir and is_rank_0():
+            self.tensorboard_writer = SummaryWriter(log_dir=tensorboard_dir)
+        
     @abstractmethod
     def _train(self, epoch):
         raise NotImplementedError()
@@ -54,6 +57,8 @@ class SLTrainer(ABC):
         for epoch in tqdm.trange(self.max_epochs, desc="Epochs", disable=not is_rank_0() or self.no_epoch_bar):
             self._train(epoch)
             self._eval(epoch)
+        if is_rank_0() and self.tensorboard_writer:
+            self.tensorboard_writer.close()
 
 
 class OnPolicyTrainer(ABC):

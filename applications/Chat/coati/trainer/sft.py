@@ -43,7 +43,7 @@ class SFTTrainer(SLTrainer):
             assert not isinstance(strategy, GeminiStrategy), \
                 "Accumulation steps are not supported in stage 3 of ColossalAI"
 
-        super().__init__(strategy, max_epochs, model, optim)
+        super().__init__(strategy, max_epochs, model, optim, tensorboard_dir=tensorboard_dir)
 
         self.accumulation_steps = accumulation_steps
         self.scheduler = lr_scheduler
@@ -76,7 +76,6 @@ class SFTTrainer(SLTrainer):
                 if is_rank_0() and self.tensorboard_writer:
                     self.tensorboard_writer.add_scalar('loss', self.total_loss / self.accumulation_steps)
                     self.tensorboard_writer.add_scalar('lr', self.scheduler.get_last_lr()[0])
-                    self.tensorboard_writer.flush()
                 if is_rank_0() and self.use_wandb:
                     wandb.log({
                         "loss": self.total_loss / self.accumulation_steps,
@@ -122,12 +121,9 @@ class SFTTrainer(SLTrainer):
 
         self.logger = logger
         self.use_wandb = use_wandb
-        self.tensorboard_writer = None
         if use_wandb:
             wandb.init(project="Coati", name=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
             wandb.watch(self.model)
-        if tensorboard_dir:
-            self.tensorboard_writer = SummaryWriter(log_dir=tensorboard_dir) if is_rank_0() else None
 
         self.total_loss = 0
         self.no_epoch_bar = True
