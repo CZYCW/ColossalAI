@@ -38,6 +38,7 @@ class SLTrainer(ABC):
         self.max_epochs = max_epochs
         self.model = model
         self.optimizer = optimizer
+        self.tensorboard_writer = None
         if tensorboard_dir and is_rank_0():
             self.tensorboard_writer = SummaryWriter(log_dir=tensorboard_dir)
         
