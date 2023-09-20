@@ -37,7 +37,6 @@ class SFTTrainer(SLTrainer):
         lr_scheduler: _LRScheduler,
         max_epochs: int = 2,
         accumulation_steps: int = 8,
-        tensorboard_dir: str = None,
     ) -> None:
         if accumulation_steps > 1:
             assert not isinstance(strategy, GeminiStrategy), \
@@ -50,6 +49,7 @@ class SFTTrainer(SLTrainer):
 
     def _train(self, epoch: int):
         self.model.train()
+        start_step = epoch * len(self.train_dataloader) // self.accumulation_steps
         for batch_id, batch in enumerate(self.train_dataloader):
 
             batch = to_device(batch, torch.cuda.current_device())
@@ -74,9 +74,8 @@ class SFTTrainer(SLTrainer):
                 self.optimizer.zero_grad()
                 self.scheduler.step()
                 if is_rank_0() and self.tensorboard_writer:
-                    self.tensorboard_writer.add_scalar('loss', self.total_loss / self.accumulation_steps)
-                    self.tensorboard_writer.add_scalar('lr', self.scheduler.get_last_lr()[0])
-                    self.tensorboard_writer.flush()
+                    self.tensorboard_writer.add_scalar('loss', self.total_loss / self.accumulation_steps, start_step + batch_id)
+                    self.tensorboard_writer.add_scalar('lr', self.scheduler.get_last_lr()[0], start_step + batch_id)
                 if is_rank_0() and self.use_wandb:
                     wandb.log({
                         "loss": self.total_loss / self.accumulation_steps,
@@ -127,7 +126,7 @@ class SFTTrainer(SLTrainer):
             wandb.init(project="Coati", name=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
             wandb.watch(self.model)
         if tensorboard_dir:
-            self.tensorboard_writer = SummaryWriter(log_dir=tensorboard_dir) if is_rank_0() else None
+            self.tensorboard_writer = SummaryWriter(log_dir=tensorboard_dir, flush_secs=5) if is_rank_0() else None
 
         self.total_loss = 0
         self.no_epoch_bar = True
